@@ -15,7 +15,22 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
-    console.log("❌ Client disconnected");
+  fetch("https://hook.eu2.make.com/d03awrvfm3n5uzykja2zcvsf75vkusqc", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      status: "call_ended",
+      timestamp: new Date().toISOString()
+    })
+  })
+  .then(res => console.log("✅ Webhook sent to Make:", res.status))
+  .catch(err => console.error("❌ Webhook error:", err));
+
+  console.log("❌ Client disconnected");
+});
+
   });
 
   ws.on("error", (err) => {
