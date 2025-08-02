@@ -8,14 +8,14 @@ const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
 wss.on("connection", (ws, req) => {
-  console.log("✅ Client connected:", req.socket.remoteAddress);
+  console.log("📞 Client connected:", req.socket.remoteAddress);
 
   ws.on("message", (message) => {
-    console.log("📨 Received message:", message.length, "bytes");
+    console.log("📥 Received message:", message.length, "bytes");
   });
 
   ws.on("close", () => {
-    fetch("https://hook.eu2.make.com/d03awrvfm3n5zuzykja2zcv5f75vkusqc", {
+    fetch("https://hook.eu2.make.com/d03awrvfm3n5uzykja2zcvsf75vkusqc", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -25,8 +25,8 @@ wss.on("connection", (ws, req) => {
         timestamp: new Date().toISOString()
       })
     })
-    .then(res => console.log("✅ Webhook sent to Make:", res.status))
-    .catch(err => console.error("❌ Webhook error:", err));
+      .then(res => console.log("✅ Webhook sent to Make:", res.status))
+      .catch(err => console.error("❌ Webhook error:", err));
 
     console.log("❌ Client disconnected");
   });
@@ -37,5 +37,5 @@ wss.on("connection", (ws, req) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🔈 WebSocket server listening on port ${PORT}`);
+  console.log(`✅ WebSocket server listening on port ${PORT}`);
 });
