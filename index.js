@@ -11,7 +11,7 @@ wss.on("connection", (ws, req) => {
   console.log("📞 Client connected:", req.socket.remoteAddress);
 
   ws.on("message", (message) => {
-    console.log("📥 Received message:", message.length, "bytes");
+    console.log("📩 Received message:", message.length, "bytes");
   });
 
   ws.on("close", () => {
@@ -25,8 +25,8 @@ wss.on("connection", (ws, req) => {
         timestamp: new Date().toISOString()
       })
     })
-      .then(res => console.log("✅ Webhook sent to Make:", res.status))
-      .catch(err => console.error("❌ Webhook error:", err));
+    .then(res => console.log("✅ Webhook sent to Make:", res.status))
+    .catch(err => console.error("❌ Webhook error:", err));
 
     console.log("❌ Client disconnected");
   });
