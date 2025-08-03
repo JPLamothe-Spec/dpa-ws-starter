@@ -1,66 +1,111 @@
 const WebSocket = require("ws");
-const http = require("http");
 const express = require("express");
+const http = require("http");
 const { urlencoded } = require("body-parser");
-const twilio = require("twilio");
-const fetch = require("node-fetch");
+require("dotenv").config();
 
-const PORT = process.env.PORT || 3000;
 const app = express();
 app.use(urlencoded({ extended: false }));
 
-// Twilio webhook: returns TwiML to start ConversationRelay
+const PORT = process.env.PORT || 3000;
+
 app.post("/twilio/voice", (req, res) => {
-  const twiml = new twilio.twiml.VoiceResponse();
-
-  twiml.start().stream({
-    url: "wss://voice-dpa-service.onrender.com/media-stream",
-  });
-
-  twiml.say(
-    { voice: "Polly.Joanna" },
-    "Hi, this is Anna, JP's digital personal assistant. Would you like me to pass on a message?"
-  );
-
+  const twiml = `
+    <Response>
+      <Start>
+        <Stream url="wss://${req.headers.host}/media-stream" />
+      </Start>
+      <Say voice="Polly.Joanna">
+        Hi, this is Anna, JP's digital personal assistant. Would you like to leave a message?
+      </Say>
+    </Response>
+  `;
   res.type("text/xml");
-  res.send(twiml.toString());
+  res.send(twiml.trim());
 });
 
-// Create the HTTP server
 const server = http.createServer(app);
+const wss = new WebSocket.Server({ server, path: "/media-stream" });
 
-// Attach WebSocket to the same server
-const wss = new WebSocket.Server({ server });
+wss.on("connection", (twilioWs) => {
+  console.log("📞 Twilio call connected");
 
-// Handle WebSocket connections
-wss.on("connection", (ws, req) => {
-  console.log("🔌 Client connected:", req.socket.remoteAddress);
-
-  ws.on("message", (message) => {
-    console.log("📥 Received message:", message.length, "bytes");
-    // TODO: Decode and stream to Whisper + GPT pipeline
+  const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
   });
 
-  ws.on("close", () => {
-    console.log("❌ Client disconnected");
-    fetch("https://hook.eu2.make.com/d03awrvfm3n5uzykja2zcvsf75vkusqc", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        status: "call_ended",
-        timestamp: new Date().toISOString(),
-      }),
-    })
-      .then((res) => console.log("✅ Webhook sent to Make:", res.status))
-      .catch((err) => console.error("❌ Webhook error:", err));
+  openaiWs.on("open", () => {
+    console.log("🧠 Connected to OpenAI Realtime API");
+
+    const startPayload = {
+      type: "session_start",
+      config: {
+        model: "gpt-4o-realtime-preview",
+        voice: "coral",
+        response_format: "audio/pcm",
+        interruptible: true,
+        transcribe: true
+      }
+    };
+
+    openaiWs.send(JSON.stringify(startPayload));
   });
 
-  ws.on("error", (err) => {
-    console.error("⚠️ WebSocket server error:", err);
+  twilioWs.on("message", (msg) => {
+    try {
+      const parsed = JSON.parse(msg);
+      if (parsed.event === "media") {
+        const audioBytes = Buffer.from(parsed.media.payload, "base64");
+        if (openaiWs.readyState === WebSocket.OPEN) {
+          openaiWs.send(audioBytes);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Error parsing Twilio message:", err);
+    }
   });
+
+  openaiWs.on("message", (data) => {
+    if (typeof data === "string") {
+      const parsed = JSON.parse(data);
+      if (parsed.type === "error") {
+        console.error("🧠 OpenAI error:", parsed);
+      }
+      return;
+    }
+
+    const base64Audio = Buffer.from(data).toString("base64");
+    const twilioPayload = {
+      event: "media",
+      media: { payload: base64Audio },
+    };
+
+    if (twilioWs.readyState === WebSocket.OPEN) {
+      twilioWs.send(JSON.stringify(twilioPayload));
+    }
+  });
+
+  const closeBoth = () => {
+    if (twilioWs.readyState === WebSocket.OPEN) twilioWs.close();
+    if (openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
+  };
+
+  twilioWs.on("close", () => {
+    console.log("📴 Twilio WebSocket closed");
+    closeBoth();
+  });
+
+  openaiWs.on("close", () => {
+    console.log("🧠 OpenAI WebSocket closed");
+    closeBoth();
+  });
+
+  twilioWs.on("error", (err) => console.error("⚠️ Twilio WS error:", err));
+  openaiWs.on("error", (err) => console.error("⚠️ OpenAI WS error:", err));
 });
 
-// Start the server
-server.listen(PORT, () => {
-  console.log(`🚀 WebSocket + HTTP server listening on port ${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
