@@ -67,7 +67,7 @@ wss.on("connection", (ws) => {
 });
 
 // ✅ Block 3: OpenAI Realtime WebSocket connection
-const openaiWsUrl = `wss://api.openai.com/v1/assistants/${process.env.asst_cxSP0hPSbkjksMowzv2D1oSx}/rt`;
+const openaiWsUrl = `wss://api.openai.com/v1/assistants/${process.env.OPENAI_ASSISTANT_ID}/rt`;
 const openaiWs = new WebSocket(openaiWsUrl, {
   headers: {
     Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
