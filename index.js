@@ -11,7 +11,7 @@ app.use(urlencoded.urlencoded({ extended: false }));
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ Block 1: Twilio webhook route with debug log
+// ✅ Twilio webhook route with hit log
 app.post("/twilio/voice", (req, res) => {
   console.log("🎯 Twilio webhook hit");
 
@@ -29,11 +29,13 @@ app.post("/twilio/voice", (req, res) => {
 // ✅ Create HTTP server
 const server = http.createServer(app);
 
-// ✅ Set up WebSocket server without binding to a path
+// ✅ Create WebSocket server (manual upgrade)
 const wss = new WebSocket.Server({ noServer: true });
 
-// ✅ Manual WebSocket upgrade for /media-stream path
+// ✅ Log WebSocket upgrade attempts
 server.on("upgrade", (request, socket, head) => {
+  console.log("🛠 WebSocket upgrade attempt:", request.url);
+
   if (request.url === "/media-stream") {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit("connection", ws, request);
@@ -43,13 +45,13 @@ server.on("upgrade", (request, socket, head) => {
   }
 });
 
-// ✅ WebSocket connection logic (you may update this later with OpenAI relay logic)
+// ✅ WebSocket connection logic (basic)
 wss.on("connection", (ws, request) => {
   console.log("🧩 WebSocket connection established");
 
   ws.on("message", (message) => {
     console.log("🎧 Received message from Twilio:", message.toString());
-    // Future: stream to OpenAI Realtime API
+    // You’ll stream to OpenAI here in the next step
   });
 
   ws.on("close", () => {
@@ -65,4 +67,3 @@ wss.on("connection", (ws, request) => {
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server listening on port ${PORT}`);
 });
-
