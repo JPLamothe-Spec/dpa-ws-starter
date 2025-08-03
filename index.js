@@ -32,7 +32,7 @@ const wss = new WebSocket.Server({ server, path: "/media-stream" });
 wss.on("connection", (twilioWs) => {
   console.log("📞 Twilio call connected");
 
-  const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
+const openaiWs = new WebSocket(`wss://api.openai.com/v1/assistants/asst_cxS9PhP5bkjKsM0wzv2D1o5x/rt`, {
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
