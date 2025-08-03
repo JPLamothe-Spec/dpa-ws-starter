@@ -9,7 +9,7 @@ app.use(urlencoded({ extended: false }));
 
 const PORT = process.env.PORT || 3000;
 
-// Twilio webhook handler
+// Twilio Webhook: returns TwiML with <Stream>
 app.post("/twilio/voice", (req, res) => {
   const twiml = `
     <Response>
@@ -25,16 +25,17 @@ app.post("/twilio/voice", (req, res) => {
   res.send(twiml.trim());
 });
 
+// WebSocket Server
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: "/media-stream" });
 
 wss.on("connection", (twilioWs) => {
   console.log("📞 Twilio call connected");
 
-  const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
+const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
+  headers: {
+    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+  }
   });
 
   openaiWs.on("open", () => {
@@ -44,6 +45,73 @@ wss.on("connection", (twilioWs) => {
       type: "session_start",
       config: {
         model: "gpt-4o-realtime-preview",
-        voice: "coral", // updated voice
+        voice: "coral",
         response_format: "audio/pcm",
-        i
+        interruptible: true,
+        transcribe: true,
+      },
+    };
+
+    openaiWs.send(JSON.stringify(startPayload));
+  });
+
+  // Twilio → OpenAI
+  twilioWs.on("message", (msg) => {
+    try {
+      const parsed = JSON.parse(msg);
+      if (parsed.event === "media") {
+        const audioBytes = Buffer.from(parsed.media.payload, "base64");
+        if (openaiWs.readyState === WebSocket.OPEN) {
+          openaiWs.send(audioBytes);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Error parsing Twilio message:", err);
+    }
+  });
+
+  // OpenAI → Twilio
+  openaiWs.on("message", (data) => {
+    if (typeof data === "string") {
+      const parsed = JSON.parse(data);
+      if (parsed.type === "error") {
+        console.error("🧠 OpenAI error:", parsed);
+      }
+      return;
+    }
+
+    const base64Audio = Buffer.from(data).toString("base64");
+    const twilioPayload = {
+      event: "media",
+      media: { payload: base64Audio },
+    };
+
+    if (twilioWs.readyState === WebSocket.OPEN) {
+      twilioWs.send(JSON.stringify(twilioPayload));
+    }
+  });
+
+  // Cleanup
+  const closeBoth = () => {
+    if (twilioWs.readyState === WebSocket.OPEN) twilioWs.close();
+    if (openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
+  };
+
+  twilioWs.on("close", () => {
+    console.log("📴 Twilio WebSocket closed");
+    closeBoth();
+  });
+
+  openaiWs.on("close", () => {
+    console.log("🧠 OpenAI WebSocket closed");
+    closeBoth();
+  });
+
+  twilioWs.on("error", (err) => console.error("⚠️ Twilio WS error:", err));
+  openaiWs.on("error", (err) => console.error("⚠️ OpenAI WS error:", err));
+});
+
+// Start Server
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
