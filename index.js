@@ -33,6 +33,9 @@ wss.on("connection", (twilioWs) => {
   console.log("📞 Twilio call connected");
 
   // ✅ Block 3: OpenAI realtime connection
+console.log("🔎 Assistant ID:", process.env.OPENAI_ASSISTANT_ID);
+console.log("🔎 API Key starts with:", process.env.OPENAI_API_KEY?.slice(0, 6));
+
   const openaiWsUrl = `wss://api.openai.com/v1/assistants/${process.env.OPENAI_ASSISTANT_ID}/rt`;
 
   const openaiWs = new WebSocket(openaiWsUrl, {
@@ -44,16 +47,14 @@ wss.on("connection", (twilioWs) => {
   openaiWs.on("open", () => {
     console.log("✅ Connected to OpenAI Realtime API");
 
-    const startPayload = {
-      type: "session_start",
-      config: {
-        model: "gpt-4o",
-        voice: "echo", // or shimmer, nova, etc.
-        response_format: "audio/pcm",
-        interruptible: true,
-        transcribe: true,
-      },
-    };
+const startPayload = {
+  type: "session_start",
+  config: {
+    response_format: "audio/pcm",
+    interruptible: true,
+    transcribe: true,
+  },
+};
 
     openaiWs.send(JSON.stringify(startPayload));
   });
