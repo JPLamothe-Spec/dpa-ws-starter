@@ -14,12 +14,14 @@ const PORT = process.env.PORT || 3000;
 //
 app.post("/twilio/voice", (req, res) => {
   const twiml = `
-    <Response>
-      <Start>
-        <Stream url="wss://${req.headers.host}/media-stream" />
-      </Start>
-    </Response>
-  `;
+  <Response>
+    <Say voice="Polly.Joanna">Hi, this is Anna, JP’s assistant. Please hold while I connect you.</Say>
+    <Start>
+      <Stream url="wss://${req.headers.host}/media-stream" />
+    </Start>
+  </Response>
+`;
+
   res.type("text/xml");
   res.send(twiml.trim());
 });
