@@ -11,14 +11,14 @@ const PORT = process.env.PORT || 3000;
 
 // ✅ Webhook endpoint for Twilio
 app.post("/twilio/voice", (req, res) => {
-  const twiml = `
-    <Response>
-      <Say voice="Polly.Joanna">Hi, this is Anna. Please say your message after the beep.</Say>
-      <Start>
-        <Stream url="wss://${req.headers.host}/media-stream" />
-      </Start>
-    </Response>
-  `;
+const twiml = `
+  <Response>
+    <Start>
+      <Stream url="wss://${req.headers.host}/media-stream" />
+    </Start>
+  </Response>
+`;
+
   res.type("text/xml");
   res.send(twiml.trim());
 });
