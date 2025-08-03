@@ -16,7 +16,7 @@ app.post("/twilio/voice", (req, res) => {
   const twiml = `
     <Response>
       <Start>
-        <Stream url="wss://${req.headers.host}/media-stream" />
+        <Stream url="wss://${req.headers.host}/media-stream" track="inbound_track" />
       </Start>
     </Response>
   `;
