@@ -11,7 +11,7 @@ app.use(urlencoded.urlencoded({ extended: false }));
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ Hardcoded Stream URL with correct Render domain
+// ✅ POST route to respond to Twilio call with <Stream>
 app.post("/twilio/voice", (req, res) => {
   console.log("🎯 Twilio webhook hit");
 
@@ -29,11 +29,17 @@ app.post("/twilio/voice", (req, res) => {
 // ✅ Create HTTP server
 const server = http.createServer(app);
 
-// ✅ WebSocket server with manual upgrade
+// ✅ Create WebSocket server without binding to a path
 const wss = new WebSocket.Server({ noServer: true });
 
+// ✅ Handle WebSocket upgrade + fallback error logging
 server.on("upgrade", (request, socket, head) => {
-  console.log("🛠 WebSocket upgrade attempt:", request.url); // <-- Should now show up
+  console.log("🛠 WebSocket upgrade attempt:", request.url);
+
+  // ✅ Log socket-level errors (useful for proxy/TLS/WebSocket failures)
+  socket.on("error", (err) => {
+    console.error("💥 WebSocket socket error:", err);
+  });
 
   if (request.url === "/media-stream") {
     wss.handleUpgrade(request, socket, head, (ws) => {
@@ -44,7 +50,7 @@ server.on("upgrade", (request, socket, head) => {
   }
 });
 
-// ✅ Handle incoming WebSocket connection
+// ✅ WebSocket connection logic
 wss.on("connection", (ws, request) => {
   console.log("🧩 WebSocket connection established");
 
