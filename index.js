@@ -1,3 +1,5 @@
+// index.js
+
 const WebSocket = require("ws");
 const express = require("express");
 const http = require("http");
@@ -22,21 +24,33 @@ app.post("/twilio/voice", (req, res) => {
   res.send(twiml.trim());
 });
 
-// ✅ Block 2: WebSocket server for Twilio Media Stream
+// ✅ Create HTTP server
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server, path: "/media-stream" });
 
-// Store streamSid globally
+// ✅ Manually bind WebSocket upgrade
+const wss = new WebSocket.Server({ noServer: true });
+
+server.on("upgrade", (request, socket, head) => {
+  if (request.url === "/media-stream") {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+// ✅ Global
 let streamSid = null;
 
+// ✅ Twilio WS incoming
 wss.on("connection", (twilioWs) => {
   console.log("📞 Twilio call connected");
 
-  // ✅ Block 3: OpenAI realtime connection
-console.log("🔎 Assistant ID:", process.env.OPENAI_ASSISTANT_ID);
-console.log("🔎 API Key starts with:", process.env.OPENAI_API_KEY?.slice(0, 6));
-
+  // ✅ OpenAI WS
   const openaiWsUrl = `wss://api.openai.com/v1/assistants/${process.env.OPENAI_ASSISTANT_ID}/rt`;
+  console.log("🔍 Assistant ID:", process.env.OPENAI_ASSISTANT_ID);
+  console.log("🔍 API Key starts with:", process.env.OPENAI_API_KEY?.slice(0, 6));
 
   const openaiWs = new WebSocket(openaiWsUrl, {
     headers: {
@@ -47,35 +61,34 @@ console.log("🔎 API Key starts with:", process.env.OPENAI_API_KEY?.slice(0, 6)
   openaiWs.on("open", () => {
     console.log("✅ Connected to OpenAI Realtime API");
 
-const startPayload = {
-  type: "session_start",
-  config: {
-    response_format: "audio/pcm",
-    interruptible: true,
-    transcribe: true,
-  },
-};
+    const startPayload = {
+      type: "session_start",
+      config: {
+        model: "gpt-4o",
+        voice: "echo",
+        response_format: "audio/pcm",
+        interruptible: true,
+        transcribe: true,
+      },
+    };
 
     openaiWs.send(JSON.stringify(startPayload));
   });
 
-  // 🔁 OpenAI → Twilio
+  // 🧠 OpenAI → Twilio
   openaiWs.on("message", (data) => {
-    console.log("📥 OpenAI message:", data.toString());
-
+    console.log("📤 OpenAI message:", data.toString());
     const base64 = Buffer.from(data).toString("base64");
 
     const twilioPayload = {
       event: "media",
-      media: {
-        payload: base64,
-      },
+      media: { payload: base64 },
     };
 
     if (twilioWs.readyState === WebSocket.OPEN) {
       twilioWs.send(JSON.stringify(twilioPayload));
 
-      // ✅ NEW: Send "mark" event to confirm audio sent
+      // ✅ Send "mark" to confirm
       const markPayload = {
         event: "mark",
         streamSid,
@@ -85,7 +98,7 @@ const startPayload = {
     }
   });
 
-  // 🔁 Twilio → OpenAI
+  // 🧠 Twilio → OpenAI
   twilioWs.on("message", (msg) => {
     try {
       const parsed = JSON.parse(msg);
@@ -106,6 +119,7 @@ const startPayload = {
     }
   });
 
+  // Error and cleanup handlers
   openaiWs.on("error", (err) => {
     console.error("❌ OpenAI WS error:", err);
   });
@@ -115,12 +129,12 @@ const startPayload = {
   });
 
   openaiWs.on("close", (code, reason) => {
-    console.warn(`🔌 OpenAI WS closed | Code: ${code} | Reason: ${reason}`);
+    console.warn(`📉 OpenAI WS closed | Code: ${code} | Reason: ${reason}`);
     closeAll();
   });
 
   twilioWs.on("close", () => {
-    console.log("🔌 Twilio WebSocket closed");
+    console.log("📉 Twilio WebSocket closed");
     closeAll();
   });
 
@@ -130,6 +144,7 @@ const startPayload = {
   }
 });
 
+// ✅ Start server
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
