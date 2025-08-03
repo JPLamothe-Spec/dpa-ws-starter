@@ -32,10 +32,10 @@ const wss = new WebSocket.Server({ server, path: "/media-stream" });
 wss.on("connection", (twilioWs) => {
   console.log("📞 Twilio call connected");
 
-const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
-  headers: {
-    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-  }
+  const openaiWs = new WebSocket(`wss://api.openai.com/v1/assistants/asst_cxSP6hPSbkjKsM0wvz2D1o5x/rt`, {
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
   });
 
   openaiWs.on("open", () => {
@@ -44,8 +44,8 @@ const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
     const startPayload = {
       type: "session_start",
       config: {
-        model: "gpt-4o-realtime-preview",
-        voice: "coral",
+        model: "gpt-4o",
+        voice: "echo", // or "nova", "shimmer", etc.
         response_format: "audio/pcm",
         interruptible: true,
         transcribe: true,
@@ -75,19 +75,19 @@ const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
     if (typeof data === "string") {
       const parsed = JSON.parse(data);
       if (parsed.type === "error") {
-        console.error("🧠 OpenAI error:", parsed);
+        console.error("⚠️ OpenAI error:", parsed);
+        return;
       }
-      return;
-    }
 
-    const base64Audio = Buffer.from(data).toString("base64");
-    const twilioPayload = {
-      event: "media",
-      media: { payload: base64Audio },
-    };
+      const base64Audio = Buffer.from(data).toString("base64");
+      const twilioPayload = {
+        event: "media",
+        media: { payload: base64Audio },
+      };
 
-    if (twilioWs.readyState === WebSocket.OPEN) {
-      twilioWs.send(JSON.stringify(twilioPayload));
+      if (twilioWs.readyState === WebSocket.OPEN) {
+        twilioWs.send(JSON.stringify(twilioPayload));
+      }
     }
   });
 
