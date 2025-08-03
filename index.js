@@ -9,6 +9,7 @@ app.use(urlencoded({ extended: false }));
 
 const PORT = process.env.PORT || 3000;
 
+// Twilio webhook handler
 app.post("/twilio/voice", (req, res) => {
   const twiml = `
     <Response>
@@ -43,69 +44,6 @@ wss.on("connection", (twilioWs) => {
       type: "session_start",
       config: {
         model: "gpt-4o-realtime-preview",
-        voice: "coral",
+        voice: "coral", // updated voice
         response_format: "audio/pcm",
-        interruptible: true,
-        transcribe: true
-      }
-    };
-
-    openaiWs.send(JSON.stringify(startPayload));
-  });
-
-  twilioWs.on("message", (msg) => {
-    try {
-      const parsed = JSON.parse(msg);
-      if (parsed.event === "media") {
-        const audioBytes = Buffer.from(parsed.media.payload, "base64");
-        if (openaiWs.readyState === WebSocket.OPEN) {
-          openaiWs.send(audioBytes);
-        }
-      }
-    } catch (err) {
-      console.error("❌ Error parsing Twilio message:", err);
-    }
-  });
-
-  openaiWs.on("message", (data) => {
-    if (typeof data === "string") {
-      const parsed = JSON.parse(data);
-      if (parsed.type === "error") {
-        console.error("🧠 OpenAI error:", parsed);
-      }
-      return;
-    }
-
-    const base64Audio = Buffer.from(data).toString("base64");
-    const twilioPayload = {
-      event: "media",
-      media: { payload: base64Audio },
-    };
-
-    if (twilioWs.readyState === WebSocket.OPEN) {
-      twilioWs.send(JSON.stringify(twilioPayload));
-    }
-  });
-
-  const closeBoth = () => {
-    if (twilioWs.readyState === WebSocket.OPEN) twilioWs.close();
-    if (openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
-  };
-
-  twilioWs.on("close", () => {
-    console.log("📴 Twilio WebSocket closed");
-    closeBoth();
-  });
-
-  openaiWs.on("close", () => {
-    console.log("🧠 OpenAI WebSocket closed");
-    closeBoth();
-  });
-
-  twilioWs.on("error", (err) => console.error("⚠️ Twilio WS error:", err));
-  openaiWs.on("error", (err) => console.error("⚠️ OpenAI WS error:", err));
-});
-
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+        i
