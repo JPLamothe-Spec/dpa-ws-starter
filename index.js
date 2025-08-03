@@ -11,14 +11,14 @@ app.use(urlencoded.urlencoded({ extended: false }));
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ Twilio webhook route with hit log
+// ✅ Hardcoded Stream URL with correct Render domain
 app.post("/twilio/voice", (req, res) => {
   console.log("🎯 Twilio webhook hit");
 
   const twiml = `
     <Response>
       <Start>
-        <Stream url="wss://${req.headers.host}/media-stream" track="inbound_track" />
+        <Stream url="wss://voice-dpa-service.onrender.com/media-stream" track="inbound_track" />
       </Start>
     </Response>
   `;
@@ -29,12 +29,11 @@ app.post("/twilio/voice", (req, res) => {
 // ✅ Create HTTP server
 const server = http.createServer(app);
 
-// ✅ Create WebSocket server (manual upgrade)
+// ✅ WebSocket server with manual upgrade
 const wss = new WebSocket.Server({ noServer: true });
 
-// ✅ Log WebSocket upgrade attempts
 server.on("upgrade", (request, socket, head) => {
-  console.log("🛠 WebSocket upgrade attempt:", request.url);
+  console.log("🛠 WebSocket upgrade attempt:", request.url); // <-- Should now show up
 
   if (request.url === "/media-stream") {
     wss.handleUpgrade(request, socket, head, (ws) => {
@@ -45,13 +44,12 @@ server.on("upgrade", (request, socket, head) => {
   }
 });
 
-// ✅ WebSocket connection logic (basic)
+// ✅ Handle incoming WebSocket connection
 wss.on("connection", (ws, request) => {
   console.log("🧩 WebSocket connection established");
 
   ws.on("message", (message) => {
     console.log("🎧 Received message from Twilio:", message.toString());
-    // You’ll stream to OpenAI here in the next step
   });
 
   ws.on("close", () => {
