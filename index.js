@@ -6,10 +6,9 @@ require("dotenv").config();
 
 const app = express();
 app.use(urlencoded({ extended: false }));
-
 const PORT = process.env.PORT || 3000;
 
-// Webhook for Twilio <Stream>
+// Twilio webhook returns TwiML with <Stream>
 app.post("/twilio/voice", (req, res) => {
   const twiml = `
     <Response>
@@ -25,14 +24,15 @@ app.post("/twilio/voice", (req, res) => {
   res.send(twiml.trim());
 });
 
-// Set up WebSocket server
+// Start WebSocket server for audio stream
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: "/media-stream" });
 
 wss.on("connection", (twilioWs) => {
   console.log("📞 Twilio call connected");
 
-const openaiWs = new WebSocket(`wss://api.openai.com/v1/assistants/asst_cxS9PhP5bkjKsM0wzv2D1o5x/rt`, {
+  // Correct connection to Realtime API endpoint
+  const openaiWs = new WebSocket("wss://api.openai.com/v1/assistants/rt", {
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
@@ -45,7 +45,7 @@ const openaiWs = new WebSocket(`wss://api.openai.com/v1/assistants/asst_cxS9PhP5
       type: "session_start",
       config: {
         model: "gpt-4o",
-        voice: "echo", // try "breeze", "nova", "shimmer", etc.
+        voice: "echo", // try "breeze", "nova", "shimmer"
         response_format: "audio/pcm",
         interruptible: true,
         transcribe: true,
@@ -55,64 +55,39 @@ const openaiWs = new WebSocket(`wss://api.openai.com/v1/assistants/asst_cxS9PhP5
     openaiWs.send(JSON.stringify(startPayload));
   });
 
-  // Forward audio from Twilio -> OpenAI
+  // Forward Twilio audio → OpenAI
   twilioWs.on("message", (msg) => {
     try {
       const parsed = JSON.parse(msg);
       if (parsed.event === "media") {
-        const audioBytes = Buffer.from(parsed.media.payload, "base64");
-        if (openaiWs.readyState === WebSocket.OPEN) {
-          openaiWs.send(audioBytes);
-        }
+        const audio = Buffer.from(parsed.media.payload, "base64");
+        if (openaiWs.readyState === WebSocket.OPEN) openaiWs.send(audio);
       }
     } catch (err) {
-      console.error("❌ Error parsing Twilio message:", err);
+      console.error("❌ Twilio message parse error:", err);
     }
   });
 
-  // Forward audio from OpenAI -> Twilio
+  // Forward OpenAI audio → Twilio
   openaiWs.on("message", (data) => {
-    if (typeof data === "string") {
-      const parsed = JSON.parse(data);
-      if (parsed.type === "error") {
-        console.error("⚠️ OpenAI error:", parsed);
-        return;
-      }
-    }
-
-    const base64Audio = Buffer.from(data).toString("base64");
-    const twilioPayload = {
-      event: "media",
-      media: { payload: base64Audio },
-    };
-
+    const base64 = Buffer.from(data).toString("base64");
+    const twPayload = { event: "media", media: { payload: base64 } };
     if (twilioWs.readyState === WebSocket.OPEN) {
-      twilioWs.send(JSON.stringify(twilioPayload));
+      twilioWs.send(JSON.stringify(twPayload));
     }
   });
 
-  // Cleanup on close
-  const closeBoth = () => {
+  // Close connection cleanup
+  const cleanup = () => {
     if (twilioWs.readyState === WebSocket.OPEN) twilioWs.close();
     if (openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
   };
-
-  twilioWs.on("close", () => {
-    console.log("📴 Twilio WebSocket closed");
-    closeBoth();
-  });
-
-  openaiWs.on("close", () => {
-    console.log("📴 OpenAI WebSocket closed");
-    closeBoth();
-  });
-
-  // Log any errors
+  twilioWs.on("close", () => { console.log("📴 Twilio WebSocket closed"); cleanup(); });
+  openaiWs.on("close", () => { console.log("📴 OpenAI WebSocket closed"); cleanup(); });
   twilioWs.on("error", (err) => console.error("⚠️ Twilio WS error:", err));
   openaiWs.on("error", (err) => console.error("⚠️ OpenAI WS error:", err));
 });
 
-// Start server
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
